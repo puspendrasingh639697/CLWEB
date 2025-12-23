@@ -53,10 +53,27 @@ const AudioCall = () => {
       console.log("Connected to Server!");
     });
 
-    const handleUpdateList = (list) => {
-      console.log("New User List:", list);
-      // Khud ka naam list se hatane ke liye
-      setOnlineUsers(list.filter(user => user.userId !== myUserId && user.userId));
+    // IS FUNCTION KO MAINE FIX KIYA HAI
+    const handleUpdateList = (data) => {
+      console.log("New User List Data:", data);
+      
+      let usersArray = [];
+      
+      // Agar backend se Object {users: [...]} aa raha hai
+      if (data && data.users && Array.isArray(data.users)) {
+        usersArray = data.users;
+      } 
+      // Agar backend se direct Array [...] aa raha hai
+      else if (Array.isArray(data)) {
+        usersArray = data;
+      }
+
+      // Filter logic: khud ko list se bahar rakhein
+      const filtered = usersArray
+        .filter(userId => userId !== myUserId && userId !== (myUserId + " ")) 
+        .map(id => ({ userId: id }));
+
+      setOnlineUsers(filtered);
     };
 
     socket.on("update-user-list", handleUpdateList);
