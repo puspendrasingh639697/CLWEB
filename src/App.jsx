@@ -27,7 +27,9 @@ const AudioCall = () => {
     pc.current = new RTCPeerConnection({
       iceServers: [
         { urls: "stun:stun.l.google.com:19302" },
-        { urls: "stun:stun1.l.google.com:19302" }
+        { urls: "stun:stun1.l.google.com:19302" },
+        { urls: "stun:stun2.l.google.com:19302" },
+        { urls: "stun:stun3.l.google.com:19302" }
       ]
     });
 
@@ -41,38 +43,33 @@ const AudioCall = () => {
       console.log("Remote stream received!");
       if (remoteAudioRef.current) {
         remoteAudioRef.current.srcObject = e.streams[0];
-        remoteAudioRef.current.play().catch(() => {
-          setAudioError(true);
-        });
+        // Browsers often block auto-play audio, this forces it
+        const playPromise = remoteAudioRef.current.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            setAudioError(true); // Show manual play button if blocked
+          });
+        }
       }
     };
   };
 
   useEffect(() => {
-    socket.on("connect", () => {
-      console.log("Connected to Server!");
-    });
+    socket.on("connect", () => console.log("Connected to Server!"));
 
-    // IS FUNCTION KO MAINE FIX KIYA HAI
     const handleUpdateList = (data) => {
       console.log("New User List Data:", data);
-      
       let usersArray = [];
-      
-      // Agar backend se Object {users: [...]} aa raha hai
       if (data && data.users && Array.isArray(data.users)) {
         usersArray = data.users;
-      } 
-      // Agar backend se direct Array [...] aa raha hai
-      else if (Array.isArray(data)) {
+      } else if (Array.isArray(data)) {
         usersArray = data;
       }
 
-      // Filter logic: khud ko list se bahar rakhein
       const filtered = usersArray
-        .filter(userId => userId !== myUserId && userId !== (myUserId + " ")) 
+        .filter(userId => userId !== myUserId && userId !== (myUserId + " "))
         .map(id => ({ userId: id }));
-
+      
       setOnlineUsers(filtered);
     };
 
@@ -97,7 +94,7 @@ const AudioCall = () => {
     });
 
     return () => {
-      socket.off("update-user-list", handleUpdateList);
+      socket.off("update-user-list");
       socket.off("incoming-call");
       socket.off("call-accepted");
       socket.off("call-ended");
@@ -112,7 +109,7 @@ const AudioCall = () => {
   };
 
   const handleJoin = () => {
-    if (!myUserId.trim()) return alert("Bhai, apna naam toh likho!");
+    if (!myUserId.trim()) return alert("Bhai, naam likho!");
     socket.emit("join", { userId: myUserId });
     setIsOnline(true);
   };
@@ -128,7 +125,7 @@ const AudioCall = () => {
       await pc.current.setLocalDescription(offer);
       socket.emit("call-request", { to: remoteId, from: myUserId, offer });
     } catch (err) {
-      alert("Microphone access chahiye call karne ke liye!");
+      alert("Mic access denied!");
       setActiveCallWith(null);
     }
   };
@@ -148,7 +145,7 @@ const AudioCall = () => {
       setIncomingCall(null);
       startTimer();
     } catch (err) {
-      alert("Microphone allow karein!");
+      alert("Mic error!");
       handleHangup(true);
     }
   };
@@ -171,64 +168,54 @@ const AudioCall = () => {
   };
 
   return (
-    <div style={{ background: "#0f172a", color: "white", minHeight: "100vh", padding: "20px", fontFamily: 'sans-serif' }}>
+    <div style={{ background: "#0f172a", color: "white", minHeight: "100vh", padding: "20px" }}>
       {!isOnline ? (
-        <div style={{ textAlign: 'center', background: '#1e293b', padding: '40px', borderRadius: '20px', maxWidth: '400px', margin: '100px auto', boxShadow: '0 10px 25px rgba(0,0,0,0.5)' }}>
-          <h2 style={{ marginBottom: '10px' }}>📞 Voice Messenger</h2>
-          <p style={{ color: '#94a3b8', marginBottom: '30px' }}>Connect with anyone, anywhere</p>
-          <input value={myUserId} onChange={e => setMyUserId(e.target.value)} placeholder="Apna Naam..." style={{ padding: '12px', borderRadius: '8px', border: 'none', width: '85%', marginBottom: '20px', background: '#334155', color: 'white' }} />
-          <button onClick={handleJoin} style={{ padding: '12px 30px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', width: '100%', fontWeight: 'bold' }}>Online Ho Jayein</button>
+        <div style={{ textAlign: 'center', background: '#1e293b', padding: '40px', borderRadius: '20px', maxWidth: '400px', margin: '80px auto' }}>
+          <h2>📞 Secure Voice</h2>
+          <input value={myUserId} onChange={e => setMyUserId(e.target.value)} placeholder="Enter Name..." style={{ padding: '10px', width: '80%', margin: '20px 0', borderRadius: '5px' }} />
+          <button onClick={handleJoin} style={{ padding: '10px 20px', background: '#3b82f6', color: 'white', borderRadius: '5px', width: '100%' }}>Go Online</button>
         </div>
       ) : (
         <div style={{ maxWidth: '500px', margin: '0 auto' }}>
-          <div style={{ background: '#1e293b', padding: '15px', borderRadius: '12px', display: 'flex', justifyContent: 'space-between', marginBottom: '30px', alignItems: 'center' }}>
-            <span>Hi, <b>{myUserId}</b></span>
-            <span style={{ color: '#22c55e', display: 'flex', alignItems: 'center', gap: '5px' }}><Radio size={14} className="animate-pulse" /> Live</span>
+          <div style={{ background: '#1e293b', padding: '15px', borderRadius: '10px', display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+            <span>User: <b>{myUserId}</b></span>
+            <span style={{ color: '#22c55e' }}>● Live</span>
           </div>
 
-          <h3 style={{ marginBottom: '15px' }}>Online Users ({onlineUsers.length})</h3>
-          <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-            {onlineUsers.length === 0 ? <p style={{ color: '#94a3b8' }}>Abhi koi online nahi hai...</p> : onlineUsers.map(user => (
-              <div key={user.userId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#334155', padding: '15px', borderRadius: '12px', marginBottom: '10px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ background: '#475569', padding: '8px', borderRadius: '50%' }}><User size={20}/></div>
-                  <span>{user.userId}</span>
-                </div>
-                <button onClick={() => startCall(user.userId)} disabled={!!activeCallWith} style={{ background: '#22c55e', border: 'none', color: 'white', padding: '10px', borderRadius: '50%', cursor: 'pointer' }}><Phone size={20}/></button>
-              </div>
-            ))}
-          </div>
+          <h3>Online Users ({onlineUsers.length})</h3>
+          {onlineUsers.map(user => (
+            <div key={user.userId} style={{ display: 'flex', justifyContent: 'space-between', background: '#334155', padding: '15px', borderRadius: '10px', marginBottom: '10px' }}>
+              <span>{user.userId}</span>
+              <button onClick={() => startCall(user.userId)} disabled={!!activeCallWith} style={{ background: '#22c55e', color: 'white', border: 'none', padding: '8px', borderRadius: '50%' }}><Phone size={20}/></button>
+            </div>
+          ))}
 
           {activeCallWith && (
-            <div style={{ position: 'fixed', inset: 0, background: '#0f172a', zIndex: 100, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ width: '120px', height: '120px', background: '#1e293b', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '4px solid #22c55e', marginBottom: '20px' }}><User size={60} /></div>
+            <div style={{ position: 'fixed', inset: 0, background: '#0f172a', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
               <h2>{activeCallWith}</h2>
-              <p style={{ color: '#22c55e', marginBottom: '10px' }}>In Call</p>
-              <h1 style={{ fontSize: '50px', marginBottom: '40px' }}>{new Date(callTimer * 1000).toISOString().substr(14, 5)}</h1>
+              <h1 style={{ fontSize: '40px' }}>{new Date(callTimer * 1000).toISOString().substr(14, 5)}</h1>
               
               {audioError && (
-                <button onClick={forcePlayAudio} style={{ background: '#f59e0b', color: 'black', padding: '12px 24px', borderRadius: '30px', border: 'none', marginBottom: '30px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                  <Volume2 size={20}/> Enable Audio
+                <button onClick={forcePlayAudio} style={{ background: '#f59e0b', color: 'black', padding: '10px 20px', borderRadius: '20px', margin: '20px' }}>
+                  <Volume2 size={20}/> Click to Enable Audio
                 </button>
               )}
 
-              <button onClick={() => handleHangup(true)} style={{ background: '#ef4444', borderRadius: '50%', width: '80px', height: '80px', border: 'none', color: 'white', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 20px rgba(239,68,68,0.4)' }}><PhoneOff size={35}/></button>
+              <button onClick={() => handleHangup(true)} style={{ background: '#ef4444', borderRadius: '50%', padding: '20px', marginTop: '30px' }}><PhoneOff size={30}/></button>
             </div>
           )}
         </div>
       )}
 
       {incomingCall && !activeCallWith && (
-        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'white', color: '#1e293b', padding: '20px', borderRadius: '20px', width: '320px', textAlign: 'center', boxShadow: '0 20px 40px rgba(0,0,0,0.4)', zIndex: 200 }}>
-          <p style={{ fontSize: '14px', color: '#64748b', margin: 0 }}>Incoming Call</p>
-          <h3 style={{ margin: '10px 0' }}>{incomingCall.from}</h3>
-          <div style={{ display: 'flex', gap: '15px', marginTop: '20px' }}>
-            <button onClick={acceptCall} style={{ flex: 1, background: '#22c55e', color: 'white', border: 'none', padding: '12px', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold' }}><Check/></button>
-            <button onClick={() => setIncomingCall(null)} style={{ flex: 1, background: '#ef4444', color: 'white', border: 'none', padding: '12px', borderRadius: '12px', cursor: 'pointer', fontWeight: 'bold' }}><X/></button>
+        <div style={{ position: 'fixed', top: '20px', left: '50%', transform: 'translateX(-50%)', background: 'white', color: 'black', padding: '20px', borderRadius: '15px', width: '300px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)' }}>
+          <p>Incoming from: {incomingCall.from}</p>
+          <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+            <button onClick={acceptCall} style={{ flex: 1, background: '#22c55e', color: 'white', padding: '10px', borderRadius: '10px' }}><Check/></button>
+            <button onClick={() => setIncomingCall(null)} style={{ flex: 1, background: '#ef4444', color: 'white', padding: '10px', borderRadius: '10px' }}><X/></button>
           </div>
         </div>
       )}
-
       <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: 'none' }} />
     </div>
   );
