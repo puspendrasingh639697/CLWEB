@@ -2,10 +2,11 @@ import React, { useEffect, useRef, useState } from "react";
 import io from "socket.io-client";
 import { Phone, PhoneOff, User, Radio, Check, X, Volume2 } from "lucide-react";
 
-// --- YAHAN AAPKA RENDER BACKEND LINK ---
+// --- AAPKA RENDER BACKEND LINK ---
 const socket = io("https://clall-1.onrender.com", {
   transports: ["websocket"],
-  reconnection: true
+  reconnection: true,
+  reconnectionAttempts: 5,
 });
 
 const AudioCall = () => {
@@ -48,13 +49,17 @@ const AudioCall = () => {
   };
 
   useEffect(() => {
-    socket.on("connect", () => console.log("Connected to Server!"));
-
-    socket.on("update-user-list", (list) => {
-      // Filter out self and empty names
-      setOnlineUsers(list.filter(user => user.userId !== myUserId && user.userId));
+    socket.on("connect", () => {
+      console.log("Connected to Server!");
     });
 
+    const handleUpdateList = (list) => {
+      console.log("New User List:", list);
+      // Khud ka naam list se hatane ke liye
+      setOnlineUsers(list.filter(user => user.userId !== myUserId && user.userId));
+    };
+
+    socket.on("update-user-list", handleUpdateList);
     socket.on("incoming-call", (data) => setIncomingCall(data));
 
     socket.on("call-accepted", async ({ answer }) => {
@@ -75,7 +80,7 @@ const AudioCall = () => {
     });
 
     return () => {
-      socket.off("update-user-list");
+      socket.off("update-user-list", handleUpdateList);
       socket.off("incoming-call");
       socket.off("call-accepted");
       socket.off("call-ended");
@@ -207,7 +212,6 @@ const AudioCall = () => {
         </div>
       )}
 
-      {/* Hidden Audio for WebRTC */}
       <audio ref={remoteAudioRef} autoPlay playsInline style={{ display: 'none' }} />
     </div>
   );
